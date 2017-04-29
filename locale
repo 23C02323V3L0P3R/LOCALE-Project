@@ -1,0 +1,1564 @@
+/*
+										Func Use отчет.
+	#Добавь
+										
+*/
+
+#include <a_samp>
+#include <a_mysql>
+#include <streamer>
+#include <foreach>
+
+//============================================[Системные настройки сервера]============================================
+#define TEXTDRAWS_REG               17                                          // Количество TextDraw под авторизацию
+
+#define SERVER_NAME                 "Locale"                               		// Макросим название сервера.
+#define SERVER_URL                  "www.develop.com"                           // Макросим URL сайта.
+
+#define MAX_LENGTH_FOR_DB           900                                         // Выделяем размер для сохранения.
+
+#define BUTTON_OK                   "Далее"                                     // Кнопка "1" в диалоге.
+#define BUTTON_NO                   "Отмена"                                    // Кнопка "2" в диалоге.
+
+#define SRV_CLR_ONE                 0xFFFFFFAA                                  // Первый основной цвет сервера. (белый).
+#define SRV_CLR_TWO                 0xBFFF00FF                                  // Второй основной цвет сервера. (лайм).
+#define SRV_CLR_ERR                 0xff4d00AA                                  // Системный цвет сервера.
+
+#define GAME_MODE                   "0.1 Beta"                                  // Версия Мода.
+
+#define MYSQL_HOST                	"localhost"
+#define MYSQL_USER                	"root"
+#define MYSQL_DATABASE            	"localedmtest"
+#define MYSQL_PASSWORD            	""
+//============================================[Системные настройки сервера]============================================
+
+#define 	KickEx(%0) 						SetTimerEx("Kick_Player", 300, 0, "d", %0)
+forward Kick_Player(playerid);
+public Kick_Player(playerid)
+{
+	Kick(playerid);
+}
+
+enum _enter_info
+{
+	pPassword[31]
+}
+new enter_info[MAX_PLAYERS][_enter_info];
+
+enum _sync_info
+{
+	sync_killer,
+	sync_reason,
+	bool:sync_dead
+}
+new sync_info[MAX_PLAYERS][_sync_info];
+
+
+new PlayerText:Menu[41][MAX_PLAYERS];
+new Text:TextReg[17][MAX_PLAYERS];
+new Text:TextAut[17][MAX_PLAYERS];
+
+new MySQL: mysql_connect_ID;
+
+enum e_DIALOG_IDs
+{
+    dKickMessage,
+    dRegister,
+    dLogin,
+    dSelectZone
+};
+
+enum e_PLAYER_INFO
+{
+    pID,
+    pName[MAX_PLAYER_NAME],
+    pPassword[31],
+    pIp[20],
+    pWarnings,
+    pSkin,
+    pKills,
+    pDeaths
+};
+
+new pInfo[MAX_PLAYERS][e_PLAYER_INFO];
+new player_is_authorized[MAX_PLAYERS char];
+
+//Макросы-функции
+#define IsPlayerAuthorized(%0)             player_is_authorized{%0}
+#define SetPlayerAuthorized(%0,%1)         player_is_authorized{%0} = %1
+
+//Макросы для удобства
+#define PLAYER_OFFLINE          0
+#define PLAYER_ONLINE           1
+
+main()
+{
+    print("\n-----------------------------------");
+    print("Locale [DM] v. "GAME_MODE" loaded	");
+    print("-----------------------------------\n");
+}
+
+public OnGameModeInit()
+{
+    mysql_connect_ID = mysql_connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE);
+    switch(mysql_errno())
+    {
+        case 0: print("Подключение к базе данных удалось");
+        case 1044: print("Подключение к базе данных не удалось [Указано неизвестное имя пользователя]");
+        case 1045: print("Подключение к базе данных не удалось [Указан неизвестный пароль]");
+        case 1049: print("Подключение к базе данных не удалось [Указана неизвестная база данных]");
+        case 2003: print("Подключение к базе данных не удалось [Хостинг с базой данных недоступен]");
+        case 2005: print("Подключение к базе данных не удалось [Указан неизвестный адрес хостинга]");
+        default: printf("Подключение к базе данных не удалось [Неизвестная ошибка. Код ошибки: %d]", mysql_errno());
+    }
+
+
+    mysql_tquery(mysql_connect_ID, !"SET CHARACTER SET 'utf8'", "", "");
+    mysql_tquery(mysql_connect_ID, !"SET NAMES 'utf8'", "", "");
+    mysql_tquery(mysql_connect_ID, !"SET character_set_client = 'cp1251'", "", "");
+    mysql_tquery(mysql_connect_ID, !"SET character_set_connection = 'cp1251'", "", "");
+    mysql_tquery(mysql_connect_ID, !"SET character_set_results = 'cp1251'", "", "");
+    mysql_tquery(mysql_connect_ID, !"SET SESSION collation_connection = 'utf8_general_ci'", "", "");
+    
+    SetGameModeText(GAME_MODE);
+    AddPlayerClass(0, 1958.3783, 1343.1572, 15.3746, 269.1425, 0, 0, 0, 0, 0, 0);
+    return 1;
+}
+
+public OnGameModeExit()
+{
+    foreach(new i: Player)
+	{
+		SaveAccount(i);
+	}
+	mysql_close(mysql_connect_ID);
+    return 1;
+}
+
+stock MenuTextDraws(playerid)
+{
+	Menu[0][playerid] = CreatePlayerTextDraw(playerid, 641.529418, 1.500000, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[0][playerid], 0.000000, 49.396297);
+	PlayerTextDrawTextSize(playerid, Menu[0][playerid], -2.000000, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[0][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[0][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[0][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[0][playerid], 17375487);
+	PlayerTextDrawSetShadow(playerid, Menu[0][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[0][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[0][playerid], 0);
+
+	Menu[1][playerid] = CreatePlayerTextDraw(playerid, 529.529357, 44.666671, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[1][playerid], 0.000000, 4.574619);
+	PlayerTextDrawTextSize(playerid, Menu[1][playerid], 125.058937, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[1][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[1][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[1][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[1][playerid], 102);
+	PlayerTextDrawSetShadow(playerid, Menu[1][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[1][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[1][playerid], 0);
+
+	Menu[2][playerid] = CreatePlayerTextDraw(playerid, 527.646728, 47.000000, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[2][playerid], 0.000000, 4.025926);
+	PlayerTextDrawTextSize(playerid, Menu[2][playerid], 487.411407, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[2][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[2][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[2][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[2][playerid], 1178813610);
+	PlayerTextDrawSetShadow(playerid, Menu[2][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[2][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[2][playerid], 0);
+
+	Menu[3][playerid] = CreatePlayerTextDraw(playerid, 132.235351, 43.750000, SERVER_NAME);
+	PlayerTextDrawLetterSize(playerid, Menu[3][playerid], 0.313999, 1.570833);
+	PlayerTextDrawAlignment(playerid, Menu[3][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[3][playerid], -1523963137);
+	PlayerTextDrawSetShadow(playerid, Menu[3][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[3][playerid], 1);
+	PlayerTextDrawBackgroundColor(playerid, Menu[3][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[3][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[3][playerid], 1);
+
+	Menu[4][playerid] = CreatePlayerTextDraw(playerid, 185.647171, 47.083339, "DeathMatch");
+	PlayerTextDrawLetterSize(playerid, Menu[4][playerid], 0.313999, 1.570833);
+	PlayerTextDrawAlignment(playerid, Menu[4][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[4][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[4][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[4][playerid], 1);
+	PlayerTextDrawBackgroundColor(playerid, Menu[4][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[4][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[4][playerid], 1);
+
+	Menu[5][playerid] = CreatePlayerTextDraw(playerid, 131.294113, 65.333328, "LD_SPAC:white");
+	PlayerTextDrawLetterSize(playerid, Menu[5][playerid], 0.000000, 0.000000);
+	PlayerTextDrawTextSize(playerid, Menu[5][playerid], 96.941192, 2.916671);
+	PlayerTextDrawAlignment(playerid, Menu[5][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[5][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[5][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[5][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[5][playerid], 4);
+
+	Menu[6][playerid] = CreatePlayerTextDraw(playerid, 230.176422, 65.166656, "LD_SPAC:white");
+	PlayerTextDrawLetterSize(playerid, Menu[6][playerid], 0.000000, 0.000000);
+	PlayerTextDrawTextSize(playerid, Menu[6][playerid], 96.941192, 2.916671);
+	PlayerTextDrawAlignment(playerid, Menu[6][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[6][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[6][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[6][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[6][playerid], 4);
+
+	Menu[7][playerid] = CreatePlayerTextDraw(playerid, 130.882369, 68.083335, "LD_SPAC:white");
+	PlayerTextDrawLetterSize(playerid, Menu[7][playerid], 0.000000, 0.000000);
+	PlayerTextDrawTextSize(playerid, Menu[7][playerid], 96.941192, 14.583337);
+	PlayerTextDrawAlignment(playerid, Menu[7][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[7][playerid], -5963521);
+	PlayerTextDrawUseBox(playerid, Menu[7][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[7][playerid], 255);
+	PlayerTextDrawSetShadow(playerid, Menu[7][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[7][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[7][playerid], 4);
+	PlayerTextDrawSetSelectable(playerid, Menu[7][playerid], true);
+
+	Menu[8][playerid] = CreatePlayerTextDraw(playerid, 230.235321, 67.916679, "LD_SPAC:white");
+	PlayerTextDrawLetterSize(playerid, Menu[8][playerid], 0.000000, 0.000000);
+	PlayerTextDrawTextSize(playerid, Menu[8][playerid], 96.941192, 14.583338);
+	PlayerTextDrawAlignment(playerid, Menu[8][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[8][playerid], -5963521);
+	PlayerTextDrawUseBox(playerid, Menu[8][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[8][playerid], 255);
+	PlayerTextDrawSetShadow(playerid, Menu[8][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[8][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[8][playerid], 4);
+	PlayerTextDrawSetSelectable(playerid, Menu[8][playerid], true);
+
+	Menu[11][playerid] = CreatePlayerTextDraw(playerid, 389.231719, 63.583339, "Money: 0$");
+	PlayerTextDrawLetterSize(playerid, Menu[11][playerid], 0.162940, 0.765833);
+	PlayerTextDrawAlignment(playerid, Menu[11][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[11][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[11][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[11][playerid], -1);
+	PlayerTextDrawBackgroundColor(playerid, Menu[11][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[11][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[11][playerid], 1);
+
+	Menu[13][playerid] = CreatePlayerTextDraw(playerid, 132.177032, 68.499992, "HAC¦PO†K…"); // Доделать настройки аккаунта.
+	PlayerTextDrawLetterSize(playerid, Menu[13][playerid], 0.209529, 1.220833);
+	PlayerTextDrawAlignment(playerid, Menu[13][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[13][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[13][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[13][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[13][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[13][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[13][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[13][playerid], 123);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[13][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[14][playerid] = CreatePlayerTextDraw(playerid, 232.823959, 68.916671, "PEЊOP¦");
+	PlayerTextDrawLetterSize(playerid, Menu[14][playerid], 0.209528, 1.220832);
+	PlayerTextDrawAlignment(playerid, Menu[14][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[14][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[14][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[14][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[14][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[14][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[14][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[14][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[14][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[15][playerid] = CreatePlayerTextDraw(playerid, 392.588104, 104.166648, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[15][playerid], 0.000000, 15.053045);
+	PlayerTextDrawTextSize(playerid, Menu[15][playerid], 125.058822, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[15][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[15][playerid], 8388863);
+	PlayerTextDrawUseBox(playerid, Menu[15][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[15][playerid], -1523963137);
+	PlayerTextDrawSetShadow(playerid, Menu[15][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[15][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[15][playerid], 0);
+
+	Menu[16][playerid] = CreatePlayerTextDraw(playerid, 529.588317, 104.000000, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[16][playerid], 0.000000, 23.758930);
+	PlayerTextDrawTextSize(playerid, Menu[16][playerid], 391.882446, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[16][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[16][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[16][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[16][playerid], -5963521);
+	PlayerTextDrawSetShadow(playerid, Menu[16][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[16][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[16][playerid], 0);
+
+	Menu[17][playerid] = CreatePlayerTextDraw(playerid, 527.294311, 107.916664, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[17][playerid], 0.000000, 22.911869);
+	PlayerTextDrawTextSize(playerid, Menu[17][playerid], 394.705993, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[17][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[17][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[17][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[17][playerid], 102);
+	PlayerTextDrawSetShadow(playerid, Menu[17][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[17][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[17][playerid], 0);
+
+	Menu[18][playerid] = CreatePlayerTextDraw(playerid, 388.882110, 107.499984, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[18][playerid], 0.000000, 14.111867);
+	PlayerTextDrawTextSize(playerid, Menu[18][playerid], 128.352935, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[18][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[18][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[18][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[18][playerid], 102);
+	PlayerTextDrawSetShadow(playerid, Menu[18][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[18][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[18][playerid], 0);
+
+	Menu[19][playerid] = CreatePlayerTextDraw(playerid, 356.235260, 116.666656, "New Textdraw");
+	PlayerTextDrawLetterSize(playerid, Menu[19][playerid], 0.449999, 1.600000);
+	PlayerTextDrawTextSize(playerid, Menu[19][playerid], 201.411712, 210.583343);
+	PlayerTextDrawAlignment(playerid, Menu[19][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[19][playerid], -1);
+	PlayerTextDrawUseBox(playerid, Menu[19][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[19][playerid], 0);
+	PlayerTextDrawSetShadow(playerid, Menu[19][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[19][playerid], 1);
+	PlayerTextDrawBackgroundColor(playerid, Menu[19][playerid], 572661504);
+	PlayerTextDrawFont(playerid, Menu[19][playerid], 5);
+	PlayerTextDrawSetProportional(playerid, Menu[19][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[19][playerid], GetPlayerSkin(playerid));
+	PlayerTextDrawSetPreviewRot(playerid, Menu[19][playerid], 0.000000, 0.000000, 0.000000, 1.000000);
+
+	Menu[20][playerid] = CreatePlayerTextDraw(playerid, 420.176910, 106.666679, PlayerName(playerid));
+	PlayerTextDrawLetterSize(playerid, Menu[20][playerid], 0.218470, 1.308333);
+	PlayerTextDrawAlignment(playerid, Menu[20][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[20][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[20][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[20][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[20][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[20][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[20][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[20][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[20][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[21][playerid] = CreatePlayerTextDraw(playerid, 139.176940, 112.333343, "Y—†…C¦‹");
+	PlayerTextDrawLetterSize(playerid, Menu[21][playerid], 0.147410, 1.057499);
+	PlayerTextDrawAlignment(playerid, Menu[21][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[21][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[21][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[21][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[21][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[21][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[21][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[21][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[21][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[22][playerid] = CreatePlayerTextDraw(playerid, 139.231658, 121.500015, "CMEP¦E†");
+	PlayerTextDrawLetterSize(playerid, Menu[22][playerid], 0.161057, 0.934998);
+	PlayerTextDrawAlignment(playerid, Menu[22][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[22][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[22][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[22][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[22][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[22][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[22][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[22][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[22][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[23][playerid] = CreatePlayerTextDraw(playerid, 139.290481, 129.499938, "€‹A®…E:");
+	PlayerTextDrawLetterSize(playerid, Menu[23][playerid], 0.142233, 1.045832);
+	PlayerTextDrawAlignment(playerid, Menu[23][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[23][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[23][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[23][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[23][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[23][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[23][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[23][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[23][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[24][playerid] = CreatePlayerTextDraw(playerid, 283.411773, 152.000045, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[24][playerid], 0.000000, 1.498145);
+	PlayerTextDrawTextSize(playerid, Menu[24][playerid], 128.352966, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[24][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[24][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[24][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[24][playerid], -1523963137);
+	PlayerTextDrawSetShadow(playerid, Menu[24][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[24][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[24][playerid], 0);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[24][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[24][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[25][playerid] = CreatePlayerTextDraw(playerid, 150.584625, 152.833328, "TEST6");
+	PlayerTextDrawLetterSize(playerid, Menu[25][playerid], 0.159174, 1.133332);
+	PlayerTextDrawAlignment(playerid, Menu[25][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[25][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[25][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[25][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[25][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[25][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[25][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[25][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[25][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[26][playerid] = CreatePlayerTextDraw(playerid, 206.178878, 178.333312, "TEST7");
+	PlayerTextDrawLetterSize(playerid, Menu[26][playerid], 0.159173, 1.133332);
+	PlayerTextDrawAlignment(playerid, Menu[26][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[26][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[26][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[26][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[26][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[26][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[26][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[26][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[26][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[27][playerid] = CreatePlayerTextDraw(playerid, 251.294021, 170.333343, "LD_POOL:ball");
+	PlayerTextDrawLetterSize(playerid, Menu[27][playerid], 0.000000, 0.000000);
+	PlayerTextDrawTextSize(playerid, Menu[27][playerid], 28.235292, 28.583314);
+	PlayerTextDrawAlignment(playerid, Menu[27][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[27][playerid], -1);
+	PlayerTextDrawUseBox(playerid, Menu[27][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[27][playerid], 255);
+	PlayerTextDrawSetShadow(playerid, Menu[27][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[27][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[27][playerid], 4);
+	PlayerTextDrawSetSelectable(playerid, Menu[27][playerid], true);
+
+	Menu[28][playerid] = CreatePlayerTextDraw(playerid, 259.588623, 165.583282, "?");
+	PlayerTextDrawLetterSize(playerid, Menu[28][playerid], 0.906939, 3.892498);
+	PlayerTextDrawAlignment(playerid, Menu[28][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[28][playerid], -1523963137);
+	PlayerTextDrawUseBox(playerid, Menu[28][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[28][playerid], 0);
+	PlayerTextDrawSetShadow(playerid, Menu[28][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[28][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[28][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[28][playerid], 1);
+	PlayerTextDrawSetProportional(playerid, Menu[28][playerid], 1);
+
+	Menu[29][playerid] = CreatePlayerTextDraw(playerid, 289.823944, 113.333358, "TEST8");
+	PlayerTextDrawLetterSize(playerid, Menu[29][playerid], 0.110704, 0.882498);
+	PlayerTextDrawAlignment(playerid, Menu[29][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[29][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[29][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[29][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[29][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[29][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[29][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[29][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[29][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[30][playerid] = CreatePlayerTextDraw(playerid, 289.882781, 120.166687, "TEST9");
+	PlayerTextDrawLetterSize(playerid, Menu[30][playerid], 0.110704, 0.882498);
+	PlayerTextDrawAlignment(playerid, Menu[30][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[30][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[30][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[30][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[30][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[30][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[30][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[30][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[30][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[31][playerid] = CreatePlayerTextDraw(playerid, 289.941589, 126.416671, "MAIL");
+	PlayerTextDrawLetterSize(playerid, Menu[31][playerid], 0.110704, 0.882498);
+	PlayerTextDrawAlignment(playerid, Menu[31][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[31][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[31][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[31][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[31][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[31][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[31][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[31][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[31][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[32][playerid] = CreatePlayerTextDraw(playerid, 290.000427, 133.249984, "TEST10");
+	PlayerTextDrawLetterSize(playerid, Menu[32][playerid], 0.110704, 0.882498);
+	PlayerTextDrawAlignment(playerid, Menu[32][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[32][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[32][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[32][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[32][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[32][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[32][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[32][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[32][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[33][playerid] = CreatePlayerTextDraw(playerid, 290.059265, 139.499984, "TEST11");
+	PlayerTextDrawLetterSize(playerid, Menu[33][playerid], 0.110703, 0.882498);
+	PlayerTextDrawAlignment(playerid, Menu[33][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[33][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[33][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[33][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[33][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[33][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[33][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[33][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[33][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[34][playerid] = CreatePlayerTextDraw(playerid, 290.118103, 145.749969, "TEST12");
+	PlayerTextDrawLetterSize(playerid, Menu[34][playerid], 0.110703, 0.882498);
+	PlayerTextDrawAlignment(playerid, Menu[34][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[34][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[34][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[34][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[34][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[34][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[34][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[34][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[34][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[35][playerid] = CreatePlayerTextDraw(playerid, 290.176940, 152.583282, "TEST13");
+	PlayerTextDrawLetterSize(playerid, Menu[35][playerid], 0.110703, 0.882498);
+	PlayerTextDrawAlignment(playerid, Menu[35][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[35][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[35][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[35][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[35][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[35][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[35][playerid], 1);
+	PlayerTextDrawSetPreviewModel(playerid, Menu[35][playerid], 0);
+	PlayerTextDrawSetPreviewRot(playerid, Menu[35][playerid], 0.000000, 0.000000, 0.000000, 0.000000);
+
+	Menu[36][playerid] = CreatePlayerTextDraw(playerid, 638.237487, 429.083496, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[36][playerid], 0.000000, 1.487468);
+	PlayerTextDrawTextSize(playerid, Menu[36][playerid], 413.061004, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[36][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[36][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[36][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[36][playerid], 102);
+	PlayerTextDrawSetShadow(playerid, Menu[36][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[36][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[36][playerid], 0);
+
+	Menu[37][playerid] = CreatePlayerTextDraw(playerid, 417.882537, 426.999969, SERVER_URL);
+	PlayerTextDrawLetterSize(playerid, Menu[37][playerid], 0.267882, 1.699166);
+	PlayerTextDrawAlignment(playerid, Menu[37][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[37][playerid], -1);
+	PlayerTextDrawUseBox(playerid, Menu[37][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[37][playerid], 0);
+	PlayerTextDrawSetShadow(playerid, Menu[37][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[37][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[37][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[37][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[37][playerid], 1);
+
+	Menu[38][playerid] = CreatePlayerTextDraw(playerid, 553.411743, 429.916687, "LD_SPAC:white");
+	PlayerTextDrawLetterSize(playerid, Menu[38][playerid], 0.000000, 0.000000);
+	PlayerTextDrawTextSize(playerid, Menu[38][playerid], 80.470642, 12.250000);
+	PlayerTextDrawAlignment(playerid, Menu[38][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[38][playerid], -1523963137);
+	PlayerTextDrawSetShadow(playerid, Menu[38][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[38][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[38][playerid], 4);
+	PlayerTextDrawSetSelectable(playerid, Menu[38][playerid], true);
+
+	Menu[39][playerid] = CreatePlayerTextDraw(playerid, 635.411804, 441.916625, "usebox");
+	PlayerTextDrawLetterSize(playerid, Menu[39][playerid], 0.000000, -0.274943);
+	PlayerTextDrawTextSize(playerid, Menu[39][playerid], 551.411804, 0.000000);
+	PlayerTextDrawAlignment(playerid, Menu[39][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[39][playerid], 0);
+	PlayerTextDrawUseBox(playerid, Menu[39][playerid], true);
+	PlayerTextDrawBoxColor(playerid, Menu[39][playerid], -5963521);
+	PlayerTextDrawSetShadow(playerid, Menu[39][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[39][playerid], 0);
+	PlayerTextDrawFont(playerid, Menu[39][playerid], 0);
+
+	Menu[40][playerid] = CreatePlayerTextDraw(playerid, 575.058715, 426.999969, "CLOSE");
+	PlayerTextDrawLetterSize(playerid, Menu[40][playerid], 0.292823, 1.319999);
+	PlayerTextDrawAlignment(playerid, Menu[40][playerid], 1);
+	PlayerTextDrawColor(playerid, Menu[40][playerid], -1);
+	PlayerTextDrawSetShadow(playerid, Menu[40][playerid], 0);
+	PlayerTextDrawSetOutline(playerid, Menu[40][playerid], 0);
+	PlayerTextDrawBackgroundColor(playerid, Menu[40][playerid], 51);
+	PlayerTextDrawFont(playerid, Menu[40][playerid], 2);
+	PlayerTextDrawSetProportional(playerid, Menu[40][playerid], 1);
+}
+
+stock Registration(playerid)
+{
+    TextReg[0][playerid] = TextDrawCreate(193.000000, 336.000000, "_");
+	TextDrawBackgroundColor(TextReg[0][playerid], 255);
+	TextDrawFont(TextReg[0][playerid], 1);
+	TextDrawLetterSize(TextReg[0][playerid], 0.500000, 0.300000);
+	TextDrawColor(TextReg[0][playerid], -1);
+	TextDrawSetOutline(TextReg[0][playerid], 0);
+	TextDrawSetProportional(TextReg[0][playerid], 1);
+	TextDrawSetShadow(TextReg[0][playerid], 1);
+	TextDrawUseBox(TextReg[0][playerid], 1);
+	TextDrawBoxColor(TextReg[0][playerid], -362344193);
+	TextDrawTextSize(TextReg[0][playerid], 406.000000, 3.000000);
+	TextDrawSetSelectable(TextReg[0][playerid], 0);
+
+	TextReg[1][playerid] = TextDrawCreate(193.000000, 97.000000, "_");
+	TextDrawBackgroundColor(TextReg[1][playerid], 255);
+	TextDrawFont(TextReg[1][playerid], 1);
+	TextDrawLetterSize(TextReg[1][playerid], 0.500000, 26.100002);
+	TextDrawColor(TextReg[1][playerid], -1);
+	TextDrawSetOutline(TextReg[1][playerid], 0);
+	TextDrawSetProportional(TextReg[1][playerid], 1);
+	TextDrawSetShadow(TextReg[1][playerid], 1);
+	TextDrawUseBox(TextReg[1][playerid], 1);
+	TextDrawBoxColor(TextReg[1][playerid], 101058160);
+	TextDrawTextSize(TextReg[1][playerid], 406.000000, 3.000000);
+	TextDrawSetSelectable(TextReg[1][playerid], 0);
+
+	TextReg[2][playerid] = TextDrawCreate(214.000000, 63.000000, ""SERVER_NAME" Registration");
+	TextDrawBackgroundColor(TextReg[2][playerid], 255);
+	TextDrawFont(TextReg[2][playerid], 2);
+	TextDrawLetterSize(TextReg[2][playerid], 0.319999, 2.500000);
+	TextDrawColor(TextReg[2][playerid], -1);
+	TextDrawSetOutline(TextReg[2][playerid], 0);
+	TextDrawSetProportional(TextReg[2][playerid], 1);
+	TextDrawSetShadow(TextReg[2][playerid], 1);
+	TextDrawSetSelectable(TextReg[2][playerid], 0);
+
+	TextReg[3][playerid] = TextDrawCreate(245.000000, 276.000000, "_");
+	TextDrawBackgroundColor(TextReg[3][playerid], 255);
+	TextDrawFont(TextReg[3][playerid], 1);
+	TextDrawLetterSize(TextReg[3][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextReg[3][playerid], -1);
+	TextDrawSetOutline(TextReg[3][playerid], 0);
+	TextDrawSetProportional(TextReg[3][playerid], 1);
+	TextDrawSetShadow(TextReg[3][playerid], 1);
+	TextDrawUseBox(TextReg[3][playerid], 1);
+	TextDrawBoxColor(TextReg[3][playerid], -462346753);
+	TextDrawTextSize(TextReg[3][playerid], 353.000000, 4.000000);
+	TextDrawSetSelectable(TextReg[3][playerid], 0);
+
+	TextReg[4][playerid] = TextDrawCreate(245.000000, 240.000000, "_");
+	TextDrawBackgroundColor(TextReg[4][playerid], 255);
+	TextDrawFont(TextReg[4][playerid], 1);
+	TextDrawLetterSize(TextReg[4][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextReg[4][playerid], -1);
+	TextDrawSetOutline(TextReg[4][playerid], 0);
+	TextDrawSetProportional(TextReg[4][playerid], 1);
+	TextDrawSetShadow(TextReg[4][playerid], 1);
+	TextDrawUseBox(TextReg[4][playerid], 1);
+	TextDrawBoxColor(TextReg[4][playerid], -462346753);
+	TextDrawTextSize(TextReg[4][playerid], 353.000000, 4.000000);
+	TextDrawSetSelectable(TextReg[4][playerid], 0);
+
+	TextReg[5][playerid] = TextDrawCreate(246.000000, 241.000000, "_");
+	TextDrawBackgroundColor(TextReg[5][playerid], 255);
+	TextDrawFont(TextReg[5][playerid], 1);
+	TextDrawLetterSize(TextReg[5][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextReg[5][playerid], -1);
+	TextDrawSetOutline(TextReg[5][playerid], 0);
+	TextDrawSetProportional(TextReg[5][playerid], 1);
+	TextDrawSetShadow(TextReg[5][playerid], 1);
+	TextDrawUseBox(TextReg[5][playerid], 1);
+	TextDrawBoxColor(TextReg[5][playerid], 286265599);
+	TextDrawTextSize(TextReg[5][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextReg[5][playerid], 0);
+
+	TextReg[6][playerid] = TextDrawCreate(246.000000, 277.000000, "_");
+	TextDrawBackgroundColor(TextReg[6][playerid], 255);
+	TextDrawFont(TextReg[6][playerid], 1);
+	TextDrawLetterSize(TextReg[6][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextReg[6][playerid], -1);
+	TextDrawSetOutline(TextReg[6][playerid], 0);
+	TextDrawSetProportional(TextReg[6][playerid], 1);
+	TextDrawSetShadow(TextReg[6][playerid], 1);
+	TextDrawUseBox(TextReg[6][playerid], 1);
+	TextDrawBoxColor(TextReg[6][playerid], 286265599);
+	TextDrawTextSize(TextReg[6][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextReg[6][playerid], 0);
+
+	TextReg[7][playerid] = TextDrawCreate(272.000000, 219.000000, "password");
+	TextDrawBackgroundColor(TextReg[7][playerid], 255);
+	TextDrawFont(TextReg[7][playerid], 2);
+	TextDrawLetterSize(TextReg[7][playerid], 0.259999, 1.100000);
+	TextDrawColor(TextReg[7][playerid], -1);
+	TextDrawSetOutline(TextReg[7][playerid], 0);
+	TextDrawSetProportional(TextReg[7][playerid], 1);
+	TextDrawSetShadow(TextReg[7][playerid], 1);
+	TextDrawSetSelectable(TextReg[7][playerid], 0);
+
+	TextReg[8][playerid] = TextDrawCreate(244.000000, 112.000000, "Name:");
+	TextDrawBackgroundColor(TextReg[8][playerid], 255);
+	TextDrawFont(TextReg[8][playerid], 2);
+	TextDrawLetterSize(TextReg[8][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextReg[8][playerid], -1);
+	TextDrawSetOutline(TextReg[8][playerid], 0);
+	TextDrawSetProportional(TextReg[8][playerid], 1);
+	TextDrawSetShadow(TextReg[8][playerid], 1);
+	TextDrawSetSelectable(TextReg[8][playerid], 0);
+	
+	TextReg[9][playerid] = TextDrawCreate(296.000000, 112.000000, PlayerName(playerid));
+	TextDrawBackgroundColor(TextReg[9][playerid], 255);
+	TextDrawFont(TextReg[9][playerid], 2);
+	TextDrawLetterSize(TextReg[9][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextReg[9][playerid], -362344193);
+	TextDrawSetOutline(TextReg[9][playerid], 0);
+	TextDrawSetProportional(TextReg[9][playerid], 1);
+	TextDrawSetShadow(TextReg[9][playerid], 1);
+	TextDrawSetSelectable(TextReg[9][playerid], 0);
+
+	TextReg[10][playerid] = TextDrawCreate(193.000000, 63.000000, "_");
+	TextDrawBackgroundColor(TextReg[10][playerid], 255);
+	TextDrawFont(TextReg[10][playerid], 1);
+	TextDrawLetterSize(TextReg[10][playerid], 0.500000, 2.700000);
+	TextDrawColor(TextReg[10][playerid], -1);
+	TextDrawSetOutline(TextReg[10][playerid], 0);
+	TextDrawSetProportional(TextReg[10][playerid], 1);
+	TextDrawSetShadow(TextReg[10][playerid], 1);
+	TextDrawUseBox(TextReg[10][playerid], 1);
+	TextDrawBoxColor(TextReg[10][playerid], 101058160);
+	TextDrawTextSize(TextReg[10][playerid], 406.000000, 3.000000);
+	TextDrawSetSelectable(TextReg[10][playerid], 0);
+
+	TextReg[11][playerid] = TextDrawCreate(265.000000, 276.000000, "REGISTER");
+	TextDrawBackgroundColor(TextReg[11][playerid], 255);
+	TextDrawFont(TextReg[11][playerid], 1);
+	TextDrawLetterSize(TextReg[11][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextReg[11][playerid], -1);
+	TextDrawSetOutline(TextReg[11][playerid], 0);
+	TextDrawSetProportional(TextReg[11][playerid], 1);
+	TextDrawSetShadow(TextReg[11][playerid], 1);
+	TextDrawUseBox(TextReg[11][playerid], 1);
+	TextDrawBoxColor(TextReg[11][playerid], -462346753);
+	TextDrawTextSize(TextReg[11][playerid], 335.000000, 8.000000);
+	TextDrawSetSelectable(TextReg[11][playerid], 1);
+
+	TextReg[12][playerid] = TextDrawCreate(260.000000, 240.000000, "Enter Pass");
+	TextDrawBackgroundColor(TextReg[12][playerid], 255);
+	TextDrawFont(TextReg[12][playerid], 1);
+	TextDrawLetterSize(TextReg[12][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextReg[12][playerid], -1);
+	TextDrawSetOutline(TextReg[12][playerid], 0);
+	TextDrawSetProportional(TextReg[12][playerid], 1);
+	TextDrawSetShadow(TextReg[12][playerid], 1);
+	TextDrawUseBox(TextReg[12][playerid], 1);
+	TextDrawBoxColor(TextReg[12][playerid], -462346753);
+	TextDrawTextSize(TextReg[12][playerid], 343.000000, 8.000000);
+	TextDrawSetSelectable(TextReg[12][playerid], 1);
+
+	TextReg[13][playerid] = TextDrawCreate(246.000000, 241.000000, "_");
+	TextDrawBackgroundColor(TextReg[13][playerid], 255);
+	TextDrawFont(TextReg[13][playerid], 1);
+	TextDrawLetterSize(TextReg[13][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextReg[13][playerid], -1);
+	TextDrawSetOutline(TextReg[13][playerid], 0);
+	TextDrawSetProportional(TextReg[13][playerid], 1);
+	TextDrawSetShadow(TextReg[13][playerid], 1);
+	TextDrawUseBox(TextReg[13][playerid], 1);
+	TextDrawBoxColor(TextReg[13][playerid], 286265599);
+	TextDrawTextSize(TextReg[13][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextReg[13][playerid], 0);
+
+	TextReg[14][playerid] = TextDrawCreate(246.000000, 277.000000, "_");
+	TextDrawBackgroundColor(TextReg[14][playerid], 255);
+	TextDrawFont(TextReg[14][playerid], 1);
+	TextDrawLetterSize(TextReg[14][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextReg[14][playerid], -1);
+	TextDrawSetOutline(TextReg[14][playerid], 0);
+	TextDrawSetProportional(TextReg[14][playerid], 1);
+	TextDrawSetShadow(TextReg[14][playerid], 1);
+	TextDrawUseBox(TextReg[14][playerid], 1);
+	TextDrawBoxColor(TextReg[14][playerid], 286265599);
+	TextDrawTextSize(TextReg[14][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextReg[14][playerid], 0);
+
+    TextReg[15][playerid] = TextDrawCreate(244.000000, 135.000000, "Ping:");
+	TextDrawBackgroundColor(TextReg[15][playerid], 255);
+	TextDrawFont(TextReg[15][playerid], 2);
+	TextDrawLetterSize(TextReg[15][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextReg[15][playerid], -1);
+	TextDrawSetOutline(TextReg[15][playerid], 0);
+	TextDrawSetProportional(TextReg[15][playerid], 1);
+	TextDrawSetShadow(TextReg[15][playerid], 1);
+	TextDrawSetSelectable(TextReg[15][playerid], 0);
+
+	TextReg[16][playerid] = TextDrawCreate(296.000000, 135.000000, "Develop");
+	TextDrawBackgroundColor(TextReg[16][playerid], 255);
+	TextDrawFont(TextReg[16][playerid], 2);
+	TextDrawLetterSize(TextReg[16][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextReg[16][playerid], -362344193);
+	TextDrawSetOutline(TextReg[16][playerid], 0);
+	TextDrawSetProportional(TextReg[16][playerid], 1);
+	TextDrawSetShadow(TextReg[16][playerid], 1);
+	TextDrawSetSelectable(TextReg[16][playerid], 0);
+}
+
+stock Autorization(playerid)
+{
+	TextAut[0][playerid] = TextDrawCreate(193.000000, 336.000000, "_");
+	TextDrawBackgroundColor(TextAut[0][playerid], 255);
+	TextDrawFont(TextAut[0][playerid], 1);
+	TextDrawLetterSize(TextAut[0][playerid], 0.500000, 0.300000);
+	TextDrawColor(TextAut[0][playerid], -1);
+	TextDrawSetOutline(TextAut[0][playerid], 0);
+	TextDrawSetProportional(TextAut[0][playerid], 1);
+	TextDrawSetShadow(TextAut[0][playerid], 1);
+	TextDrawUseBox(TextAut[0][playerid], 1);
+	TextDrawBoxColor(TextAut[0][playerid], -362344193);
+	TextDrawTextSize(TextAut[0][playerid], 406.000000, 3.000000);
+	TextDrawSetSelectable(TextAut[0][playerid], 0);
+
+	TextAut[1][playerid] = TextDrawCreate(193.000000, 97.000000, "_");
+	TextDrawBackgroundColor(TextAut[1][playerid], 255);
+	TextDrawFont(TextAut[1][playerid], 1);
+	TextDrawLetterSize(TextAut[1][playerid], 0.500000, 26.100002);
+	TextDrawColor(TextAut[1][playerid], -1);
+	TextDrawSetOutline(TextAut[1][playerid], 0);
+	TextDrawSetProportional(TextAut[1][playerid], 1);
+	TextDrawSetShadow(TextAut[1][playerid], 1);
+	TextDrawUseBox(TextAut[1][playerid], 1);
+	TextDrawBoxColor(TextAut[1][playerid], 101058160);
+	TextDrawTextSize(TextAut[1][playerid], 406.000000, 3.000000);
+	TextDrawSetSelectable(TextAut[1][playerid], 0);
+
+	TextAut[2][playerid] = TextDrawCreate(214.000000, 63.000000, ""SERVER_NAME" Authorization");
+	TextDrawBackgroundColor(TextAut[2][playerid], 255);
+	TextDrawFont(TextAut[2][playerid], 2);
+	TextDrawLetterSize(TextAut[2][playerid], 0.319999, 2.500000);
+	TextDrawColor(TextAut[2][playerid], -1);
+	TextDrawSetOutline(TextAut[2][playerid], 0);
+	TextDrawSetProportional(TextAut[2][playerid], 1);
+	TextDrawSetShadow(TextAut[2][playerid], 1);
+	TextDrawSetSelectable(TextAut[2][playerid], 0);
+
+	TextAut[3][playerid] = TextDrawCreate(245.000000, 276.000000, "_");
+	TextDrawBackgroundColor(TextAut[3][playerid], 255);
+	TextDrawFont(TextAut[3][playerid], 1);
+	TextDrawLetterSize(TextAut[3][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextAut[3][playerid], -1);
+	TextDrawSetOutline(TextAut[3][playerid], 0);
+	TextDrawSetProportional(TextAut[3][playerid], 1);
+	TextDrawSetShadow(TextAut[3][playerid], 1);
+	TextDrawUseBox(TextAut[3][playerid], 1);
+	TextDrawBoxColor(TextAut[3][playerid], -462346753);
+	TextDrawTextSize(TextAut[3][playerid], 353.000000, 4.000000);
+	TextDrawSetSelectable(TextAut[3][playerid], 0);
+
+	TextAut[4][playerid] = TextDrawCreate(245.000000, 240.000000, "_");
+	TextDrawBackgroundColor(TextAut[4][playerid], 255);
+	TextDrawFont(TextAut[4][playerid], 1);
+	TextDrawLetterSize(TextAut[4][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextAut[4][playerid], -1);
+	TextDrawSetOutline(TextAut[4][playerid], 0);
+	TextDrawSetProportional(TextAut[4][playerid], 1);
+	TextDrawSetShadow(TextAut[4][playerid], 1);
+	TextDrawUseBox(TextAut[4][playerid], 1);
+	TextDrawBoxColor(TextAut[4][playerid], -462346753);
+	TextDrawTextSize(TextAut[4][playerid], 353.000000, 4.000000);
+	TextDrawSetSelectable(TextAut[4][playerid], 0);
+
+	TextAut[5][playerid] = TextDrawCreate(246.000000, 241.000000, "_");
+	TextDrawBackgroundColor(TextAut[5][playerid], 255);
+	TextDrawFont(TextAut[5][playerid], 1);
+	TextDrawLetterSize(TextAut[5][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextAut[5][playerid], -1);
+	TextDrawSetOutline(TextAut[5][playerid], 0);
+	TextDrawSetProportional(TextAut[5][playerid], 1);
+	TextDrawSetShadow(TextAut[5][playerid], 1);
+	TextDrawUseBox(TextAut[5][playerid], 1);
+	TextDrawBoxColor(TextAut[5][playerid], 286265599);
+	TextDrawTextSize(TextAut[5][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextAut[5][playerid], 0);
+
+	TextAut[6][playerid] = TextDrawCreate(246.000000, 277.000000, "_");
+	TextDrawBackgroundColor(TextAut[6][playerid], 255);
+	TextDrawFont(TextAut[6][playerid], 1);
+	TextDrawLetterSize(TextAut[6][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextAut[6][playerid], -1);
+	TextDrawSetOutline(TextAut[6][playerid], 0);
+	TextDrawSetProportional(TextAut[6][playerid], 1);
+	TextDrawSetShadow(TextAut[6][playerid], 1);
+	TextDrawUseBox(TextAut[6][playerid], 1);
+	TextDrawBoxColor(TextAut[6][playerid], 286265599);
+	TextDrawTextSize(TextAut[6][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextAut[6][playerid], 0);
+
+	TextAut[7][playerid] = TextDrawCreate(272.000000, 219.000000, "password");
+	TextDrawBackgroundColor(TextAut[7][playerid], 255);
+	TextDrawFont(TextAut[7][playerid], 2);
+	TextDrawLetterSize(TextAut[7][playerid], 0.259999, 1.100000);
+	TextDrawColor(TextAut[7][playerid], -1);
+	TextDrawSetOutline(TextAut[7][playerid], 0);
+	TextDrawSetProportional(TextAut[7][playerid], 1);
+	TextDrawSetShadow(TextAut[7][playerid], 1);
+	TextDrawSetSelectable(TextAut[7][playerid], 0);
+
+	TextAut[8][playerid] = TextDrawCreate(244.000000, 112.000000, "Name:");
+	TextDrawBackgroundColor(TextAut[8][playerid], 255);
+	TextDrawFont(TextAut[8][playerid], 2);
+	TextDrawLetterSize(TextAut[8][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextAut[8][playerid], -1);
+	TextDrawSetOutline(TextAut[8][playerid], 0);
+	TextDrawSetProportional(TextAut[8][playerid], 1);
+	TextDrawSetShadow(TextAut[8][playerid], 1);
+	TextDrawSetSelectable(TextAut[8][playerid], 0);
+
+	TextAut[9][playerid] = TextDrawCreate(296.000000, 112.000000, PlayerName(playerid));
+	TextDrawBackgroundColor(TextAut[9][playerid], 255);
+	TextDrawFont(TextAut[9][playerid], 2);
+	TextDrawLetterSize(TextAut[9][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextAut[9][playerid], -362344193);
+	TextDrawSetOutline(TextAut[9][playerid], 0);
+	TextDrawSetProportional(TextAut[9][playerid], 1);
+	TextDrawSetShadow(TextAut[9][playerid], 1);
+	TextDrawSetSelectable(TextAut[9][playerid], 0);
+
+	TextAut[10][playerid] = TextDrawCreate(193.000000, 63.000000, "_");
+	TextDrawBackgroundColor(TextAut[10][playerid], 255);
+	TextDrawFont(TextAut[10][playerid], 1);
+	TextDrawLetterSize(TextAut[10][playerid], 0.500000, 2.700000);
+	TextDrawColor(TextAut[10][playerid], -1);
+	TextDrawSetOutline(TextAut[10][playerid], 0);
+	TextDrawSetProportional(TextAut[10][playerid], 1);
+	TextDrawSetShadow(TextAut[10][playerid], 1);
+	TextDrawUseBox(TextAut[10][playerid], 1);
+	TextDrawBoxColor(TextAut[10][playerid], 101058160);
+	TextDrawTextSize(TextAut[10][playerid], 406.000000, 3.000000);
+	TextDrawSetSelectable(TextAut[10][playerid], 0);
+
+	TextAut[11][playerid] = TextDrawCreate(247.000000, 276.000000, "Authorization");
+	TextDrawBackgroundColor(TextAut[11][playerid], 255);
+	TextDrawFont(TextAut[11][playerid], 1);
+	TextDrawLetterSize(TextAut[11][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextAut[11][playerid], -1);
+	TextDrawSetOutline(TextAut[11][playerid], 0);
+	TextDrawSetProportional(TextAut[11][playerid], 1);
+	TextDrawSetShadow(TextAut[11][playerid], 1);
+	TextDrawUseBox(TextAut[11][playerid], 1);
+	TextDrawBoxColor(TextAut[11][playerid], -462346753);
+	TextDrawTextSize(TextAut[11][playerid], 335.000000, 8.000000);
+	TextDrawSetSelectable(TextAut[11][playerid], 1);
+
+	TextAut[12][playerid] = TextDrawCreate(260.000000, 240.000000, "Enter Pass");
+	TextDrawBackgroundColor(TextAut[12][playerid], 255);
+	TextDrawFont(TextAut[12][playerid], 1);
+	TextDrawLetterSize(TextAut[12][playerid], 0.490000, 1.299999);
+	TextDrawColor(TextAut[12][playerid], -1);
+	TextDrawSetOutline(TextAut[12][playerid], 0);
+	TextDrawSetProportional(TextAut[12][playerid], 1);
+	TextDrawSetShadow(TextAut[12][playerid], 1);
+	TextDrawUseBox(TextAut[12][playerid], 1);
+	TextDrawBoxColor(TextAut[12][playerid], -462346753);
+	TextDrawTextSize(TextAut[12][playerid], 343.000000, 8.000000);
+	TextDrawSetSelectable(TextAut[12][playerid], 1);
+
+	TextAut[13][playerid] = TextDrawCreate(246.000000, 241.000000, "_");
+	TextDrawBackgroundColor(TextAut[13][playerid], 255);
+	TextDrawFont(TextAut[13][playerid], 1);
+	TextDrawLetterSize(TextAut[13][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextAut[13][playerid], -1);
+	TextDrawSetOutline(TextAut[13][playerid], 0);
+	TextDrawSetProportional(TextAut[13][playerid], 1);
+	TextDrawSetShadow(TextAut[13][playerid], 1);
+	TextDrawUseBox(TextAut[13][playerid], 1);
+	TextDrawBoxColor(TextAut[13][playerid], 286265599);
+	TextDrawTextSize(TextAut[13][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextAut[13][playerid], 0);
+
+	TextAut[14][playerid] = TextDrawCreate(246.000000, 277.000000, "_");
+	TextDrawBackgroundColor(TextAut[14][playerid], 255);
+	TextDrawFont(TextAut[14][playerid], 1);
+	TextDrawLetterSize(TextAut[14][playerid], 0.469999, 1.100000);
+	TextDrawColor(TextAut[14][playerid], -1);
+	TextDrawSetOutline(TextAut[14][playerid], 0);
+	TextDrawSetProportional(TextAut[14][playerid], 1);
+	TextDrawSetShadow(TextAut[14][playerid], 1);
+	TextDrawUseBox(TextAut[14][playerid], 1);
+	TextDrawBoxColor(TextAut[14][playerid], 286265599);
+	TextDrawTextSize(TextAut[14][playerid], 352.000000, 3.000000);
+	TextDrawSetSelectable(TextAut[14][playerid], 0);
+
+    TextAut[15][playerid] = TextDrawCreate(244.000000, 135.000000, "Ping:");
+	TextDrawBackgroundColor(TextAut[15][playerid], 255);
+	TextDrawFont(TextAut[15][playerid], 2);
+	TextDrawLetterSize(TextAut[15][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextAut[15][playerid], -1);
+	TextDrawSetOutline(TextAut[15][playerid], 0);
+	TextDrawSetProportional(TextAut[15][playerid], 1);
+	TextDrawSetShadow(TextAut[15][playerid], 1);
+	TextDrawSetSelectable(TextAut[15][playerid], 0);
+
+	TextAut[16][playerid] = TextDrawCreate(296.000000, 135.000000, "Develop");
+	TextDrawBackgroundColor(TextAut[16][playerid], 255);
+	TextDrawFont(TextAut[16][playerid], 2);
+	TextDrawLetterSize(TextAut[16][playerid], 0.289999, 1.299999);
+	TextDrawColor(TextAut[16][playerid], -362344193);
+	TextDrawSetOutline(TextAut[16][playerid], 0);
+	TextDrawSetProportional(TextAut[16][playerid], 1);
+	TextDrawSetShadow(TextAut[16][playerid], 1);
+	TextDrawSetSelectable(TextAut[16][playerid], 0);
+}
+
+public OnPlayerRequestClass(playerid, classid)
+{
+    SetPlayerPos(playerid, 1840.929443, -1331.141967, 49.061687);
+    SetPlayerCameraPos(playerid, 1840.929443, -1331.141967, 49.061687);
+    SetPlayerCameraLookAt(playerid, 1840.929443, -1331.141967, 49.061687);
+    return 1;
+}
+
+public OnPlayerConnect(playerid)
+{
+    Registration(playerid);
+    Autorization(playerid);
+    MenuTextDraws(playerid);
+    SetTimerEx("SafeOnPlayerConnect", 250, 0, "d", playerid);
+    GetPlayerName(playerid, pInfo[playerid][pName], MAX_PLAYER_NAME);
+    return 1;
+}
+
+forward SafeOnPlayerConnect(playerid);
+public SafeOnPlayerConnect(playerid)
+{
+    new query_string[49+MAX_PLAYER_NAME-4];
+    TogglePlayerSpectating(playerid, 1);
+    format(query_string, sizeof(query_string), "SELECT * FROM `accounts` WHERE `player_name` = '%s'", pInfo[playerid][pName]);
+    mysql_tquery(mysql_connect_ID, query_string, "FindPlayerInTable","i", playerid);
+    InterpolateCameraPos(playerid, 1840.929443, -1331.141967, 49.061687, 2190.910888, -1724.577392, 45.276901, 30000);
+    InterpolateCameraLookAt(playerid, 1843.496093, -1334.822753, 46.856105, 2187.599853, -1728.190185, 44.284484, 30000);
+	return 1;
+}
+
+public OnPlayerDisconnect(playerid, reason)
+{
+    SaveAccount(playerid);
+    RemovePlayerInfo(playerid);
+    return 1;
+}
+
+public OnPlayerGiveDamage(playerid, damagedid, Float: amount, weaponid)
+{
+    if(damagedid != INVALID_PLAYER_ID)
+    {
+		new Float:health;
+		GetPlayerHealth(damagedid, health),
+		health -= amount;
+		if(health < 30)
+		{
+			sync_info[damagedid][sync_killer] = playerid;
+			sync_info[damagedid][sync_reason] = weaponid;
+			sync_info[damagedid][sync_dead] = true;
+		}
+		SetPlayerHealth(damagedid, health);
+		
+		//#Добавь проверку
+		PlayerPlaySound(playerid,6401,0.0,0.0,0.0);
+	}
+    return 1;
+}
+
+public OnPlayerSpawn(playerid)
+{
+    if(!IsPlayerAuthorized(playerid))
+    {
+        OnGiveWarning(playerid, 0);
+		return false;
+	}
+	sync_info[playerid][sync_dead] = false;
+    return 1;
+}
+
+public OnPlayerDeath(playerid, killerid, reason)
+{
+    killerid = sync_info[playerid][sync_killer];
+	reason = sync_info[playerid][sync_reason];
+	sync_info[playerid][sync_killer] = INVALID_PLAYER_ID;
+	sync_info[playerid][sync_reason] = 255;
+	
+	pInfo[playerid][pDeaths] ++;
+	pInfo[killerid][pKills] ++;
+	SetPlayerScore(killerid, pInfo[killerid][pKills]);
+	
+	SendDeathMessage(killerid, playerid, reason);
+    return 1;
+}
+
+public OnVehicleSpawn(vehicleid)
+{
+    return 1;
+}
+
+public OnVehicleDeath(vehicleid, killerid)
+{
+    return 1;
+}
+
+public OnPlayerText(playerid, text[])
+{
+    if(!IsPlayerAuthorized(playerid))
+    {
+        OnGiveWarning(playerid, 0);
+		return false;
+	}
+	new string[200];
+	format(string, sizeof(string), "{FFFFFF}- %s (%s)[%d]", text, PlayerName(playerid), playerid);
+	SetPlayerChatBubble(playerid, text, -1, 20.0, 10000);
+	SendDistanceChat(playerid, 20.0, string);
+    return 0;
+}
+
+public OnPlayerCommandText(playerid, cmdtext[])
+{
+	new cmd[200];
+    if(strcmp(cmd, "/testdialog", true) == 0)
+	{
+		SendMsg(playerid, SRV_CLR_ERR, "[DEBUG MODE]: Готово");
+        for(new i; i < 41; i++) PlayerTextDrawShow(playerid, Menu[i][playerid]);
+		return true;
+	}
+    return 0;
+}
+
+public OnPlayerEnterVehicle(playerid, vehicleid, ispassenger)
+{
+    return 1;
+}
+
+public OnPlayerExitVehicle(playerid, vehicleid)
+{
+    return 1;
+}
+
+public OnPlayerStateChange(playerid, newstate, oldstate)
+{
+    return 1;
+}
+
+public OnPlayerEnterCheckpoint(playerid)
+{
+    return 1;
+}
+
+public OnPlayerLeaveCheckpoint(playerid)
+{
+    return 1;
+}
+
+public OnPlayerEnterRaceCheckpoint(playerid)
+{
+    return 1;
+}
+
+public OnPlayerLeaveRaceCheckpoint(playerid)
+{
+    return 1;
+}
+
+public OnRconCommand(cmd[])
+{
+    return 1;
+}
+
+public OnPlayerRequestSpawn(playerid)
+{
+    return 1;
+}
+
+public OnObjectMoved(objectid)
+{
+    return 1;
+}
+
+public OnPlayerObjectMoved(playerid, objectid)
+{
+    return 1;
+}
+
+public OnPlayerPickUpPickup(playerid, pickupid)
+{
+    return 1;
+}
+
+public OnVehicleMod(playerid, vehicleid, componentid)
+{
+    return 1;
+}
+
+public OnVehiclePaintjob(playerid, vehicleid, paintjobid)
+{
+    return 1;
+}
+
+public OnVehicleRespray(playerid, vehicleid, color1, color2)
+{
+    return 1;
+}
+
+public OnPlayerSelectedMenuRow(playerid, row)
+{
+    return 1;
+}
+
+public OnPlayerExitedMenu(playerid)
+{
+    return 1;
+}
+
+public OnPlayerInteriorChange(playerid, newinteriorid, oldinteriorid)
+{
+    return 1;
+}
+
+public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
+{
+    return 1;
+}
+
+public OnRconLoginAttempt(ip[], password[], success)
+{
+    return 1;
+}
+
+public OnPlayerUpdate(playerid)
+{
+    return 1;
+}
+
+public OnPlayerStreamIn(playerid, forplayerid)
+{
+    return 1;
+}
+
+public OnPlayerStreamOut(playerid, forplayerid)
+{
+    return 1;
+}
+
+public OnVehicleStreamIn(vehicleid, forplayerid)
+{
+    return 1;
+}
+
+public OnVehicleStreamOut(vehicleid, forplayerid)
+{
+    return 1;
+}
+
+public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
+{
+    switch(dialogid)
+    {
+        case dRegister:
+        {
+            if(!response)
+            {
+                ShowPlayerDialog(playerid, dKickMessage, DIALOG_STYLE_MSGBOX, "{FFFFFF}Регистрация", "{FFFFFF}Вы были кикнуты с сервера.\nПричина: Отказ от регистрации.\n{FFFFFF}Для выхода с сервера введите \"{ff4d00}/q{ffffff}\" в чат.", BUTTON_OK, "");
+                return KickEx(playerid);
+            }
+            if(!strlen(inputtext)) return ShowPlayerDialog(playerid, dRegister, DIALOG_STYLE_INPUT, "{ffffff}Введите пароль", "{FF0000}Ошибка: {FFFFFF}Вы не можете продолжить регистрацию не введя пароль!\nВведите пароль для регистрации нового аккаунта:\n{C0C0C0}Примечание:\n{666666}- Пароль чувствителен к регистру.\n- Пароль должен содержать от 4 до 10 символов.\n- Пароль может содержать латинские/кириллические символы и цифры (aA-zZ, аА-яЯ, 0-9).", BUTTON_OK, "");
+            else if(strlen(inputtext) < 4) return ShowPlayerDialog(playerid, dRegister, DIALOG_STYLE_INPUT, "{ffffff}Введите пароль", "{FF0000}Ошибка: {FFFFFF}Пароль слишком короткий!\nВведите пароль для регистрации нового аккаунта:\n{C0C0C0}Примечание:\n{666666}- Пароль чувствителен к регистру.\n- Пароль должен содержать от 4 до 10 символов.\n- Пароль может содержать латинские/кириллические символы и цифры (aA-zZ, аА-яЯ, 0-9).", BUTTON_OK, "");
+            else if(strlen(inputtext) > 10) return ShowPlayerDialog(playerid, dRegister, DIALOG_STYLE_INPUT, "{ffffff}Введите пароль", "{FF0000}Ошибка: {FFFFFF}Пароль слишком длинный!\nВведите пароль для регистрации нового аккаунта:\n{C0C0C0}Примечание:\n{666666}- Пароль чувствителен к регистру.\n- Пароль должен содержать от 4 до 10 символов.\n- Пароль может содержать латинские/кириллические символы и цифры (aA-zZ, аА-яЯ, 0-9).", BUTTON_OK, "");
+            for(new i = strlen(inputtext)-1; i != -1; i--)
+            {
+                switch(inputtext[i])
+                {
+                    case '0'..'9', 'а'..'я', 'a'..'z', 'А'..'Я', 'A'..'Z': continue;
+                    default: return ShowPlayerDialog(playerid, dRegister, DIALOG_STYLE_INPUT, "{ffffff}Введите пароль", "{FF0000}Ошибка: {FFFFFF}Пароль содержит запрещённые символы!\nВведите пароль для регистрации нового аккаунта:\n{C0C0C0}Примечание:\n{666666}- Пароль чувствителен к регистру.\n- Пароль должен содержать от 4 до 30 символов.\n- Пароль может содержать латинские/кириллические символы и цифры (aA-zZ, аА-яЯ, 0-9).", BUTTON_OK, "");
+                }
+            }
+            TextDrawSetString(TextReg[12][playerid], "Enter pass");
+            strins(enter_info[playerid][pPassword], inputtext, 0);
+            TextDrawSetString(TextReg[12][playerid], enter_info[playerid][pPassword]);
+			strins(pInfo[playerid][pPassword], enter_info[playerid][pPassword], 0);
+            enter_info[playerid][pPassword][0] = EOS;
+            return 1;
+        }
+        case dLogin:
+        {
+            if(!response)
+            {
+                ShowPlayerDialog(playerid, dKickMessage, DIALOG_STYLE_MSGBOX, "{ffffff}Авторизация", "{FFFFFF}Вы были кикнуты с сервера.\n{FF0000}Причина: Отказ от авторизации.\n{FFFFFF}Для выхода с сервера введите \"{ff4d00}/q{ffffff}\" в чат", BUTTON_OK, "");
+                return KickEx(playerid);
+            }
+            if(!strlen(inputtext)) return ShowPlayerDialog(playerid, dLogin, DIALOG_STYLE_INPUT, "{ffffff}Авторизация", "{FF0000}Ошибка: {FFFFFF}Вы не можете продолжить авторизацию не введя пароль!\nВведите пароль от аккаунта для входа на сервер:", BUTTON_OK, "");
+            for(new i = strlen(inputtext)-1; i != -1; i--)
+            {
+                switch(inputtext[i])
+                {
+                    case '0'..'9', 'а'..'я', 'a'..'z', 'А'..'Я', 'A'..'Z': continue;
+                    default: return ShowPlayerDialog(playerid, dLogin, DIALOG_STYLE_INPUT, "{ffffff}Авторизация", "{FF0000}Ошибка: {FFFFFF}Введённый пароль содержит запрещённые символы!\nВведите пароль от аккаунта для входа на сервер:", BUTTON_OK, "");
+                }
+            }
+            strins(enter_info[playerid][pPassword], inputtext, 0);
+            TextDrawSetString(TextAut[12][playerid], inputtext);
+            return 1;
+        }
+        case dSelectZone:
+        {
+            if(response)
+			{
+			    TogglePlayerSpectating(playerid, 0);
+				SendMsg(playerid, SRV_CLR_ERR, "[Ошибка]: Данный режим находится в стадии разработки.");
+				SpawnPlayer(playerid);
+			}
+			else
+			{
+			    TogglePlayerSpectating(playerid, 0);
+				SendMsg(playerid, SRV_CLR_ERR, "[Ошибка]: Данный режим находится в стадии разработки.");
+				SpawnPlayer(playerid);
+			}
+		}
+    }
+    return 1;
+}
+
+public OnPlayerClickPlayer(playerid, clickedplayerid, source)
+{
+    return 1;
+}
+
+forward FindPlayerInTable(playerid);
+public FindPlayerInTable(playerid)
+{
+    new rows;
+    cache_get_row_count(rows);
+
+    if(!rows)
+    {
+        SelectTextDraw(playerid, -362344193);
+		for(new i; i < TEXTDRAWS_REG; i++) TextDrawShowForPlayer(playerid, TextReg[i][playerid]);
+    }
+    else
+    {
+        SelectTextDraw(playerid, -362344193);
+		for(new i; i < TEXTDRAWS_REG; i++) TextDrawShowForPlayer(playerid, TextAut[i][playerid]);
+		cache_get_value_name(0, "password", pInfo[playerid][pPassword], 31);
+    }
+    return 1;
+}
+
+stock SendDistanceChat(playerid, Float:range, string[])
+{
+	new Float:POS[3],Float:radius;
+	GetPlayerPos(playerid, POS[0], POS[1], POS[2]);
+	foreach(new i: Player)
+	{
+		if(IsPlayerConnected(i) && GetPlayerVirtualWorld(playerid) == GetPlayerVirtualWorld(i))
+		{
+			radius = GetPlayerDistanceFromPoint(i, POS[0], POS[1], POS[2]);
+			if(radius < range/16) SendMsg(i, -1, string);
+			else if(radius < range/8) SendMsg(i, -1, string);
+			else if(radius < range/4) SendMsg(i, -1, string);
+			else if(radius < range/2) SendMsg(i, -1, string);
+			else if(radius < range) SendMsg(i, -1, string);
+		}
+	}
+	return 1;
+}
+
+stock PlayerName(playerid)
+{
+	new Name[MAX_PLAYER_NAME];
+	GetPlayerName(playerid, Name,sizeof(Name));
+	return Name;
+}
+
+stock OnGiveWarning(playerid, reason)
+{
+	new reason_message[40];
+	switch(reason)
+	{
+	    case 0:
+		{
+		    pInfo[playerid][pWarnings] ++;
+			reason_message = "Использование действия без авторизации.";
+		}
+	}
+	switch(pInfo[playerid][pWarnings])
+	{
+	    case 1..2: SendMsg(playerid, SRV_CLR_ERR, "[Предупреждение]: Вы получили %d / 3 выговоров. Причина: %s", pInfo[playerid][pWarnings], reason_message);
+		case 3:
+		{
+		    SendMsg(playerid, SRV_CLR_ERR, "[Предупреждение]: Вы получили 3 / 3 выговоров. Причина: %s", reason_message);
+		    SendMsgAll(SRV_CLR_ERR, "[Сервер]: Игрок %s был кикнут. Причина: 3 / 3 предупреждений. Причина: %s", PlayerName(playerid), reason_message);
+			KickEx(playerid);
+		}
+	}
+	return true;
+}
+
+stock CreateNewAccount(playerid, password[])
+{
+    new query_string[66 + MAX_PLAYER_NAME - 4 + 30], ipStr[16];
+	GetPlayerIp(playerid, ipStr, 16);
+    format(query_string, sizeof(query_string), "INSERT INTO `accounts` (`player_name`, `password`, `reg_ip`) VALUES ('%s', '%s', '%s')", pInfo[playerid][pName], password, ipStr);
+    mysql_tquery(mysql_connect_ID, query_string, "UploadPlayerAccountNumber", "i", playerid);
+
+	//#Добавь новости сервера и так далее.
+    SendMsg(playerid, SRV_CLR_TWO, "Аккаунт %s успешно зарегистрирован. Администрация желает Вам приятной игры!", PlayerName(playerid));
+    SetPlayerAuthorized(playerid, PLAYER_ONLINE);
+    ShowPlayerDialog(playerid, dSelectZone, DIALOG_STYLE_MSGBOX, "Выберите тип игры", "{ffffff}\t\tОписание режимов\n1. All [DM] - режим, в котороым вы играете сами за себя, каждые\n30 минут меняется арена сражений, оружие выбираете сами.\n2. DeathMatch - обычный DM режим на статичной\nтерритории, в нем вам нужно сражаться с другими игроками.", "All [DM]", "DeathMatch");
+    return 1;
+}
+
+public OnPlayerClickTextDraw(playerid, Text:clickedid)
+{
+	if(clickedid == TextReg[12][playerid])
+	{
+		return ShowPlayerDialog(playerid, dRegister, DIALOG_STYLE_INPUT, "Регистрация", "{FFFFFF}Введите пароль для регистрации нового аккаунта:\n{C0C0C0}Примечание:\n{666666}- Пароль чувствителен к регистру.\n- Пароль должен содержать от 4 до 30 символов.\n- Пароль может содержать латинские/кириллические символы и цифры (aA-zZ, аА-яЯ, 0-9).", BUTTON_OK, "");
+	}
+	else if(clickedid == TextReg[11][playerid])
+    {
+		if(!strlen(pInfo[playerid][pPassword])) return SendClientMessage(playerid, SRV_CLR_ERR, "[Ошибка]: Вы не ввели пароль. Попробуйте снова!");
+        CreateNewAccount(playerid, pInfo[playerid][pPassword]);
+        for(new i; i < TEXTDRAWS_REG; i++) TextDrawHideForPlayer(playerid, TextReg[i][playerid]);
+        ShowPlayerDialog(playerid, dSelectZone, DIALOG_STYLE_MSGBOX, "Выберите тип игры", "{ffffff}\t\tОписание режимов\n1. All [DM] - режим, в котороым вы играете сами за себя, каждые\n30 минут меняется арена сражений, оружие выбираете сами.\n2. DeathMatch - обычный DM режим на статичной\nтерритории, в нем вам нужно сражаться с другими игроками.", "All [DM]", "DeathMatch");
+		CancelSelectTextDraw(playerid);
+	}
+	else if(clickedid == TextAut[12][playerid])
+	{
+		return ShowPlayerDialog(playerid, dLogin, DIALOG_STYLE_INPUT, "{ffffff}Авторизация", "{ffffff}Введите пароль для авторизации:", BUTTON_OK, "");
+	}
+	else if(clickedid == TextAut[11][playerid])
+    {
+		if(!strcmp(pInfo[playerid][pPassword], enter_info[playerid][pPassword]))
+		{
+  			new query_string[49+MAX_PLAYER_NAME];
+     		format(query_string, sizeof(query_string), "SELECT * FROM `accounts` WHERE `player_name` = '%s'", pInfo[playerid][pName]);
+  			mysql_tquery(mysql_connect_ID, query_string, "UploadPlayerAccount","i", playerid);
+  			ShowPlayerDialog(playerid, dSelectZone, DIALOG_STYLE_MSGBOX, "Выберите тип игры", "{ffffff}\t\tОписание режимов\n1. All [DM] - режим, в котороым вы играете сами за себя, каждые\n30 минут меняется арена сражений, оружие выбираете сами.\n2. DeathMatch - обычный DM режим на статичной\nтерритории, в нем вам нужно сражаться с другими игроками.", "All [DM]", "DeathMatch");
+            for(new i; i < TEXTDRAWS_REG; i++) TextDrawHideForPlayer(playerid, TextAut[i][playerid]);
+        	CancelSelectTextDraw(playerid);
+		}
+      	else
+       	{
+            enter_info[playerid][pPassword][0] = EOS;
+        	switch(GetPVarInt(playerid, "WrongPassword"))
+         	{
+          		case 0: ShowPlayerDialog(playerid, dLogin, DIALOG_STYLE_INPUT, "{ffffff}Авторизация", "{FF0000}Ошибка: {FFFFFF}Вы ввели неверный пароль! У Вас осталось 3 попытки.\nВведите пароль от аккаунта для входа на сервер:", BUTTON_OK, "");
+            	case 1: ShowPlayerDialog(playerid, dLogin, DIALOG_STYLE_INPUT, "{ffffff}Авторизация", "{FF0000}Ошибка: {FFFFFF}Вы ввели неверный пароль! У Вас осталось 2 попытки.\nВведите пароль от аккаунта для входа на сервер:", BUTTON_OK, "");
+             	case 2: ShowPlayerDialog(playerid, dLogin, DIALOG_STYLE_INPUT, "{ffffff}Авторизация", "{FF0000}Ошибка: {FFFFFF}Вы ввели неверный пароль! У Вас осталось 1 попытка.\nВведите пароль от аккаунта для входа на сервер:", BUTTON_OK, "");
+              	case 3: ShowPlayerDialog(playerid, dLogin, DIALOG_STYLE_INPUT, "{ffffff}Авторизация", "{FF0000}Ошибка: {FFFFFF}Вы ввели неверный пароль! У Вас осталась последняя попытка, после чего Вас кикнет.\nВведите пароль от аккаунта для входа на сервер:", BUTTON_OK, "");
+               	default:
+               	{
+                	ShowPlayerDialog(playerid, dKickMessage, DIALOG_STYLE_MSGBOX, "{ffffff}Авторизация", "{FFFFFF}Вы были кикнуты с сервера.\n{FF0000}Причина: Превышен лимит попыток на ввод пароля.\n{FFFFFF}Для выхода с сервера введите \"/q\" в чат", BUTTON_NO, "");
+                 	return KickEx(playerid);
+              	}
+      		}
+       		SetPVarInt(playerid, "WrongPassword", GetPVarInt(playerid, "WrongPassword")+1);
+       	}
+	}
+	return true;
+}
+
+forward UploadPlayerAccountNumber(playerid);
+public UploadPlayerAccountNumber(playerid) pInfo[playerid][pID] = cache_insert_id();
+
+forward UploadPlayerAccount(playerid);
+public UploadPlayerAccount(playerid)
+{
+    cache_get_value_name_int(0, "id", pInfo[playerid][pID]);
+	cache_get_value_name(0, "reg_ip", pInfo[playerid][pIp], 20);
+	cache_get_value_name_int(0, "pKills", pInfo[playerid][pKills]);
+	cache_get_value_name_int(0, "pDeaths", pInfo[playerid][pDeaths]);
+	
+	//#Добавь новости сервера и так далее.
+    SendMsg(playerid, 0xFFFFFF00, "Вы успешно авторизировались!");
+    SetPlayerAuthorized(playerid, PLAYER_ONLINE);
+    
+    SetPlayerScore(playerid, pInfo[playerid][pKills]);
+	return 1;
+}
+
+stock SendMsg(playerid, color, fstring[], {Float, _}:...)
+{
+	new n = (numargs() - 2) * 4;
+	if(n)
+	{
+	    new message[164], arg_start, arg_end;
+	    #emit CONST.alt         fstring
+	    #emit LCTRL         	5
+	    #emit ADD
+	    #emit STOR.S.pri		arg_start
+	    #emit LOAD.S.alt		n
+	    #emit ADD
+	    #emit STOR.S.pri		arg_end
+	    do
+	    {
+	        #emit LOAD.I
+	        #emit PUSH.pri
+			arg_end -= 4;
+			#emit LOAD.S.pri	arg_end
+	    }
+	    while (arg_end > arg_start);
+	    #emit PUSH.S			fstring
+	    #emit PUSH.C			164
+	    #emit PUSH.ADR			message
+		n += 4 * 3;
+		#emit PUSH.S			n
+		#emit SYSREQ.C			format
+		n += 4;
+		#emit LCTRL				4
+		#emit LOAD.S.alt		n
+		#emit ADD
+		#emit SCTRL				4
+		return SendClientMessage(playerid, color, message);
+	}
+	else return SendClientMessage(playerid, color, fstring);
+}
+
+stock SendMsgAll(color, fstring[], {Float, _}:...)
+{
+	new n = (numargs() - 2) * 4;
+	if(n)
+	{
+	    new message[164], arg_start, arg_end;
+	    #emit CONST.alt         fstring
+	    #emit LCTRL         5
+	    #emit ADD
+	    #emit STOR.S.pri            arg_start
+	    #emit LOAD.S.alt            n
+	    #emit ADD
+	    #emit STOR.S.pri            arg_end
+	    do
+	    {
+	        #emit LOAD.I
+	        #emit PUSH.pri
+			arg_end -= 4;
+			#emit LOAD.S.pri            arg_end
+	    }
+	    while (arg_end > arg_start);
+	    #emit PUSH.S                fstring
+	    #emit PUSH.C                164
+	    #emit PUSH.ADR               message
+		n += 4 * 3;
+		#emit PUSH.S                n
+		#emit SYSREQ.C               format
+		n += 4;
+		#emit LCTRL                 4
+		#emit LOAD.S.alt                n
+		#emit ADD
+		#emit SCTRL                 4
+		return SendClientMessageToAll(color, message);
+	}
+	else return SendClientMessageToAll(color, fstring);
+}
+
+stock SaveAccount(playerid)
+{
+    new query_string[MAX_LENGTH_FOR_DB] = "UPDATE `accounts` SET";
+
+    format(query_string, sizeof(query_string), "%s `player_name` = '%s',", query_string, pInfo[playerid][pName]);
+    format(query_string, sizeof(query_string), "%s `password` = '%s',", query_string, pInfo[playerid][pPassword]);
+    format(query_string, sizeof(query_string), "%s `pKills` = '%d',", query_string, pInfo[playerid][pKills]);
+    format(query_string, sizeof(query_string), "%s `pDeaths` = '%d'", query_string, pInfo[playerid][pDeaths]);
+
+    format(query_string, sizeof(query_string), "%s WHERE `id` = '%d'", query_string, pInfo[playerid][pID]);
+    mysql_tquery(mysql_connect_ID, query_string, "", "");
+    return 1;
+}
+
+stock RemovePlayerInfo(playerid)
+{
+	pInfo[playerid][pID] = 0;
+    pInfo[playerid][pName][0] = EOS;
+    pInfo[playerid][pPassword][0] = EOS;
+    pInfo[playerid][pIp][0] = EOS;
+    pInfo[playerid][pWarnings] = 0;
+    pInfo[playerid][pKills] = 0;
+    pInfo[playerid][pDeaths] = 0;
+    
+    sync_info [playerid] [sync_killer] = INVALID_PLAYER_ID;
+	sync_info [playerid] [sync_reason] = 255;
+	
+	enter_info[playerid][pPassword][0] = EOS;
+	
+	CancelSelectTextDraw(playerid);
+    return 1;
+}
